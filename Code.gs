@@ -58,13 +58,14 @@ function onSubmit(e) {
         //insert rio link
         insertItem(items,'RaiderIO',rio['profile_url'])
         //insert raid prog
-        insertItem(items,'Castle Nathria',rio['raid_progression']['castle-nathria']['summary'],true)
-        insertItem(items,'Sanctum of Domination',rio['raid_progression']['sanctum-of-domination']['summary'],true)
-        // let raidProgS = '**Castle Nathria** | '
-        // raidProgS = raidProgS.concat(rio['raid_progression']['castle-nathria']['summary']).concat('\n')
-        // raidProgS = raidProgS.concat('**Sanctum of Domination** | ')
-        // raidProgS = raidProgS.concat(rio['raid_progression']['sanctum-of-domination']['summary'])
-        // insertItem(items,'Raid Progression',raidProgS)
+        for (const raidProg of Object.entries(rio['raid_progression'])) {
+          let raidName = raidProg[0].split('-')
+                                    .map(raid => raid[0].toUpperCase()
+                                                        .concat(raid.slice(1))
+                                    ).join(' ')
+          let prog = raidProg[1]['summary']
+          insertItem(items,raidName,prog,true)
+        }
         continue
       } else if (question == discQ) {
         question = 'Discord ID'
