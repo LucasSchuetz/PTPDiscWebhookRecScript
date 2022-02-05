@@ -51,7 +51,15 @@ function onSubmit(e) {
       } else if (question == serverNameQ) {
         serverS = answer
         // only supporting us region for now?
-        rio = JSON.parse(getRio('us',serverS,characterS,RIO_FIELDS))
+        try {
+          rio = JSON.parse(getRio('us',serverS,characterS,RIO_FIELDS))
+        } catch {
+          preItems = []
+          items = []
+          insertItem(items,'!!Error!!','Applicant mispelled character name..')
+        }
+
+        if (!rio) continue // short-circuit
 
         // insert wcl link
         insertItem(items,'Warcraft Logs',getWcl(serverS,characterS))
@@ -70,6 +78,7 @@ function onSubmit(e) {
       } else if (question == discQ) {
         question = 'Discord ID'
       } else if (question == specQ) {
+        if (!rio) continue // short-circuit
         // insert inlines
         insertItem(preItems,'Applying As',applyAsA,true)
         insertItem(preItems,specQ,answer,true)
@@ -87,7 +96,13 @@ function onSubmit(e) {
   }
 
   let finalItems = joinLists(preItems,items)
-
+  let classColor = 16711680
+  let thumbnail = 'https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg'
+  if (rio) {
+    classColor = classColors[rio['class']]
+    thumbnail = rio['thumbnail_url']
+  }
+  
   const options = {
       'method': 'post',
       'headers': {
@@ -97,10 +112,10 @@ function onSubmit(e) {
           'content': '',
           'embeds': [{
             'title': characterS.concat(' - ').concat(serverS),
-            'color': classColors[rio['class']],
+            'color': classColor,
             'fields': finalItems,
             'thumbnail': {
-                'url': rio['thumbnail_url']
+                'url': thumbnail
               }
             }]
       })
