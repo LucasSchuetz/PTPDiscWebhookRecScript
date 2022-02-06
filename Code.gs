@@ -1,10 +1,10 @@
-const POST_URL = '//DISCORD WEBHOOK GOES HERE//'
-
+const POST_URL = "//DISCORD WEBHOOK URL//"
+ 
 // https://articles.warcraftlogs.com/help/api-documentation
-//const WCL_ID = '//WARCRAFTLOGS CLIENT ID GOES HERE//'
-//const WCL_SECRET = '//WARCRAFTLOGS SECRET KEY GOES HERE//'
+//const WCL_ID = '//WCL CLIENT KEY'
+//const WCL_SECRET = '//WCL SECRET KEY//'
 // token is base64-encoded client ID + client secret..
-const WCL_TOKEN_BASE64 = '//WARCRAFTLOGS BASE64 TOKEN GOES HERE//'
+const WCL_TOKEN_BASE64 = '//TOKEN HERE//'
 const WCL_TOKEN_URI = 'https://www.warcraftlogs.com/oauth/token'
 const WCL_CLIENT_CREDS_OPTS = {
   'method': 'post',
@@ -12,25 +12,28 @@ const WCL_CLIENT_CREDS_OPTS = {
   'payload': 'grant_type=client_credentials'
 }
 let wclClientToken
-const WCL_OVERALL_QUERY = 'query($name:String!,$server:String!,$region:String!) {\
+const WCL_OVERALL_QUERY = '\
+query($name:String!,$server:String!,$region:String!,$metric:CharacterRankingMetricType!) {\
   characterData {\
     character(name:$name,serverSlug:$server,serverRegion:$region) {\
-      zoneRankings\
+      zoneRankings(metric:$metric)\
     }\
-}}'
-const WCL_BRACKET_QUERY = 'query($name:String!,$server:String!,$region:String!) {\
-  characterData {\
-    character(name:$name,serverSlug:$server,serverRegion:$region) {\
-      zoneRankings(byBracket:true)\
-    }\
-}}'
-
+  }\
+}'
+// not used, saving for a rainy day
+// const WCL_BRACKET_QUERY = 'query($name:String!,$server:String!,$region:String!) {\
+//   characterData {\
+//     character(name:$name,serverSlug:$server,serverRegion:$region) {\
+//       zoneRankings(byBracket:true)\
+//     }\
+// }}'
+ 
 const applyAsQ = 'I\'m applying as:'
 const specQ = 'Main Spec'
 const charNameQ = 'Character Name (logs, raider.io & guild history will automatically be pulled)'
 const serverNameQ = 'Server'
 const discQ = 'Discord ID (NOT Bnet) capitalization sensitive! Please accept the discord friend request we send you'
-
+ 
 // Source: https://wowpedia.fandom.com/wiki/Class_colors
 // Converter: https://www.rapidtables.com/convert/number/hex-to-decimal.html
 const classColors = {
@@ -47,31 +50,29 @@ const classColors = {
   'Warlock': 8882414,
   'Warrior': 13015917
 }
-
+ 
 const RIO_FIELDS = [
   'gear',
   'mythic_plus_scores',
   'raid_progression'
 ]
-
+ 
 function onSubmit(e) {
-  const response = e.response.getItemResponses()
   let embeds = []
-  let basicItems = []
-  let raidProgItems = []
-  let parseItems = []
-  let linkItems = []
+  const response = e.response.getItemResponses()
+  let items = []
+  let infoItems = []
   let rio
   let applyAsA
   let characterS
   let serverS
-
+ 
   wclClientToken = getWclToken()
-
+ 
   for (const responseAnswer of response) {
       let question = responseAnswer.getItem().getTitle()
       let answer = responseAnswer.getResponse()
-
+ 
       if (question == applyAsQ) {
         applyAsA = answer
         continue
@@ -84,75 +85,73 @@ function onSubmit(e) {
         try {
           rio = JSON.parse(getRio('us',serverS,characterS,RIO_FIELDS))
         } catch {
-          basicItems = []
-          raidProgItems = []
-          parseItems = []
-          linkItems = []
-          insertItem(basicItems,'!!Error!!','Applicant mispelled character name..')
-        }
-
-        if (!rio) continue // short-circuit
-
-        // insert wcl link
-        insertItem(linkItems,'Warcraft Logs',getWcl(serverS,characterS))
-        //insert rio link
-        insertItem(linkItems,'RaiderIO',rio['profile_url'])
-        //insert raid prog
-        for (const raidProg of Object.entries(rio['raid_progression'])) {
-          let raidName = raidProg[0].split('-')
-                                    .map(raid => raid[0].toUpperCase()
-                                                        .concat(raid.slice(1))
-                                    ).join(' ')
-          let prog = raidProg[1]['summary']
-          insertItem(raidProgItems,raidName,prog,true)
+          items = []
+          insertItem(infoItems,'!!Error!!','Applicant mispelled character name..')
         }
         continue
       } else if (question == discQ) {
         question = 'Discord ID'
       } else if (question == specQ) {
-        if (!rio) continue // short-circuit
-        // insert inlines
-        insertItem(basicItems,'Applying As',applyAsA,true)
-        insertItem(basicItems,specQ,answer,true)
-        insertItem(basicItems,'ilvl',rio['gear']['item_level_equipped'],true)
-        // io is an int, concat with empty string to convert
-        insertItem(parseItems,'IO Score',''.concat(rio['mythic_plus_scores']['all']),false)
-        // insert parses
-        let overallRankings = getWclRankings(WCL_OVERALL_QUERY,characterS,serverS)
-        let bracketRankings = getWclRankings(WCL_BRACKET_QUERY,characterS,serverS)
-        insertItem(parseItems,'Best By ilvl',
-                    roundDecimalAsString(bracketRankings['bestPerformanceAverage']),true)
-        insertItem(parseItems,'Median By ilvl',
-                    roundDecimalAsString(bracketRankings['medianPerformanceAverage']),true)
-        insertItem(parseItems,'Best Overall',
-                  roundDecimalAsString(overallRankings['bestPerformanceAverage']),true)
-        insertItem(parseItems,'Median Overall',
-                  roundDecimalAsString(overallRankings['medianPerformanceAverage']),true)
+        // insert info
+        insertItem(infoItems,'Applying As',applyAsA,true)
+        insertItem(infoItems,specQ,answer,true)
+        //insert raider io
+        if (rio) insertItem(infoItems,'ilvl',rio['gear']['item_level_equipped'],true)
         continue
       }
-
+ 
       if (!answer) {
           continue
       }
-
-      insertItem(basicItems,question,answer)
+ 
+      insertItem(infoItems,question,answer)
   }
-
-  let classColor = 16711680
+ 
+  let classColor = 16711680 // #FF0000 (red)
   let thumbnail = 'https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg'
   if (rio) {
+    //insert raid prog
+    for (const raidProg of Object.entries(rio['raid_progression'])) {
+      let totalBosses = raidProg[1]['total_bosses']
+      let hKilled = raidProg[1]['heroic_bosses_killed']
+      let mKilled = raidProg[1]['mythic_bosses_killed']
+      let raidName = raidProg[0].split('-')
+                                .map(raid => raid[0].toUpperCase()
+                                                    .concat(raid.slice(1))
+                                ).join(' ')
+      let prog = ''.concat(mKilled).concat('/').concat(totalBosses).concat('M | ')
+      prog = prog.concat(hKilled).concat('/').concat(totalBosses).concat('H')
+      insertItem(items,raidName,prog,true)
+    }
+    
+    // insert parses
+    let overallRankings = getWclRankings(WCL_OVERALL_QUERY,characterS,serverS)['bestPerformanceAverage']
+    if (overallRankings) {
+      overallRankings = roundDecimalAsString(overallRankings)
+    } else {
+      overallRankings = 'N/A'
+    }
+    let overallParse = linkifyString(overallRankings, getWcl(serverS,characterS))
+    insertItem(items,'Avg Parse',overallParse,true)
+    // io is an int, concat with empty string to convert
+    let ioLink = linkifyString(
+      ''.concat(rio['mythic_plus_scores']['all']),
+      rio['profile_url']
+    )
+    insertItem(items,'IO Score',ioLink,true)
+ 
+     // insert wcl and raider io link
+    // insertItem(items,'Warcraft Logs',getWcl(serverS,characterS))
+    // insertItem(items,'RaiderIO',rio['profile_url'])
+ 
     classColor = classColors[rio['class']]
     thumbnail = rio['thumbnail_url']
   }
-
+ 
+  let finalItems = [].concat(infoItems).concat(items)
+ 
   // insert basic embed
-  insertEmbed(embeds,basicItems,classColor,characterS.concat(' - ').concat(serverS),thumbnail)
-  // insert raidProg embed
-  if (raidProgItems.length > 0) insertEmbed(embeds,raidProgItems,classColor,'Raid Progression')
-  // insert parse embed
-  if (parseItems.length > 0) insertEmbed(embeds,parseItems,classColor,'Stats')
-  // insert link embed
-  if (linkItems.length > 0) insertEmbed(embeds,linkItems,classColor)
+  insertEmbed(embeds,finalItems,classColor,characterS.concat(' - ').concat(serverS),thumbnail)
   
   const options = {
       'method': 'post',
@@ -164,11 +163,26 @@ function onSubmit(e) {
           'embeds': embeds
       })
   }
-
+ 
   // post to disc
   fetch(POST_URL,options)
 }
-
+ 
+function insertItem(items,name,value,inline) {
+  items.push({
+    'name': '__'.concat(name).concat('__'),
+    'value': value,
+    'inline': inline
+  })
+}
+ 
+function insertItemLineBreak(items) {
+  items.push({
+    'name': '\u200b',
+    'value': '\u200b'
+  })
+}
+ 
 function insertEmbed(embeds,fields,color,title,thumbnail) {
   let embed = {
     'fields':fields,
@@ -183,31 +197,35 @@ function insertEmbed(embeds,fields,color,title,thumbnail) {
       'url': thumbnail
     }
   }
-
+ 
   embeds.push(embed)
 }
-
-function insertItem(items,name,value,inline) {
-  items.push({
-    'name': '__'.concat(name).concat('__'),
-    'value': value,
-    'inline': inline
-  })
-}
-
+ 
 function joinLists(one,two) {
   for (let item of two) {
     one.push(item)
   }
-
+ 
   return one
 }
-
+ 
 function roundDecimalAsString(decimal) {
   let num = ''.concat(decimal).split('.')
   return num[0].concat('.').concat(num[1].slice(0,2))
 }
-
+ 
+function strListToString(arr) {
+  let r = ''
+  for (const i of arr) {
+    r = r.concat(i)
+  }
+  return r
+}
+ 
+function linkifyString(text,link) {
+  return '['.concat(text).concat('](').concat(link).concat(')')
+}
+ 
 // `fields` should be array of strings
 // https://raider.io/api#/
 const FIELDS_S = '&fields='
@@ -216,26 +234,27 @@ function getRio(region,realm,name,fields) {
   rioUrl = rioUrl.concat(region).concat('&realm=')
   rioUrl = rioUrl.concat(realm).concat('&name=')
   rioUrl = rioUrl.concat(name)
-
+ 
   if (fields) {
     rioUrl = rioUrl.concat(FIELDS_S).concat(commaSepLst(fields))
   }
-
+ 
   return fetch(rioUrl)
 }
-
+ 
 function getWcl(realm,name) {
   let wclUrl = 'https://www.warcraftlogs.com/character/us/'
   wclUrl = wclUrl.concat(realm).concat('/')
   wclUrl = wclUrl.concat(name)
   return wclUrl
 }
-
+ 
 function getWclToken() {
   return JSON.parse(fetch(WCL_TOKEN_URI,WCL_CLIENT_CREDS_OPTS))['access_token']
 }
-
-function getWclRankings(query,name,server) {
+ 
+function getWclRankings(query,name,server,metric) {
+  if (!metric) metric = 'dps'
   const WCL_OPTS = {
     'method': 'post',
     'headers': {
@@ -247,14 +266,15 @@ function getWclRankings(query,name,server) {
       'variables': {
         'name': name,
         'server': server,
-        'region': 'us'
+        'region': 'us',
+        'metric': metric
       }
     })
   }
-
+ 
   return JSON.parse(fetch('https://www.warcraftlogs.com/api/v2/client',WCL_OPTS))['data']['characterData']['character']['zoneRankings']
 }
-
+ 
 function commaSepLst(arr) {
   let r = ''
   for (const [index,item] of Object.entries(arr)) {
@@ -264,10 +284,10 @@ function commaSepLst(arr) {
       r = r.concat(',').concat(item)
     }
   }
-
+ 
   return r
 }
-
+ 
 function fetch(url,opts) {
   if (opts) return UrlFetchApp.fetch(url,opts)
   return UrlFetchApp.fetch(url)
